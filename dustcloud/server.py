@@ -32,6 +32,7 @@ import base64
 from miio.protocol import Message
 import json
 import configparser
+import http.client
 
 try:
     import bottle
@@ -155,6 +156,21 @@ class CloudClient:
         except AttributeError:
             pass
 
+    def do_event_push(self, did, data):
+        event_push_server = configParser.get('eventpush', 'server', '')
+        event_push_url = configParser.get('eventpush', 'url', '/')
+        if not event_push_server:
+            return
+        data = json.dumps({"did": did, "data": data})
+        headers = {"Content-Type": "application/json"}
+        conn = http.client.HTTPConnection(event_push_server);
+        conn.request("POST", event_push_url, data, headers)
+        response = conn.getresponse()
+        print(response.status, response.reason)
+        data = response.read()
+        print(data)
+        conn.close()
+        
     def do_log(self, did, data, direction):
         data = json.dumps(data)
         try:
@@ -300,6 +316,7 @@ class CloudClient:
                             "id": packetid,
                             "result": "ok"
                         }
+                        self.do_event_push(did, m.data.value)
                         if (mysocket.forward_to_cloud == 1) or (mysocket.full_cloud_forward == 1):
                             self.do_log(did, m.data.value, MessageDirection.ToCloud + "(status)")
                             mysocket.send_data_to_cloud(data)
